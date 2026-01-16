@@ -50,7 +50,7 @@ vectorstore, df, all_sub_processes = load_data()
 
 # Initialize Groq LLM (Make sure GROQ_API_KEY is in Streamlit Secrets)
 llm = ChatGroq(
-    model="llama-3.2-3b-preview", 
+    model="llama-3.1-8b-instant",
     api_key=st.secrets["GROQ_API_KEY"],
     temperature=0
 )
