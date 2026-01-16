@@ -7,29 +7,33 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 
 # --- 1. SIMPLE PASSWORD AUTHENTICATION ---
+# This replaces the complex Google/Microsoft login for easier setup
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
     st.set_page_config(page_title="Login | PartsCheck", page_icon="🔒")
     st.markdown("# 🔒 PartsCheck Support Hub")
+    
     password = st.text_input("Enter Password to Access", type="password")
     if st.button("Log In"):
-        # You can change 'PartsCheck2026' to whatever you like
+        # It checks Streamlit Secrets for APP_PASSWORD, defaults to 'PartsCheck2026'
         if password == st.secrets.get("APP_PASSWORD", "PartsCheck2026"):
             st.session_state.authenticated = True
             st.rerun()
         else:
             st.error("Incorrect password.")
     st.stop()
+
 # --- 2. CONFIG & DATA ---
+# Ensure these folders and files exist in your GitHub repository
 CSV_PATH = "processed_docs/final_rag_dataset.csv"
 IMG_DIR = "processed_docs/images"
 
 @st.cache_resource
 def load_data():
     if not os.path.exists(CSV_PATH):
-        st.error(f"CSV file not found at: {CSV_PATH}. Please check the path and redeploy.")
+        st.error(f"CSV file not found at: {CSV_PATH}. Please check your GitHub folder structure.")
         st.stop()
     
     df = pd.read_csv(CSV_PATH, encoding='utf-8').dropna(subset=['process', 'sub_process'])
@@ -44,7 +48,7 @@ def load_data():
 
 vectorstore, df, all_sub_processes = load_data()
 
-# Initialize Groq LLM (Ensure GROQ_API_KEY is in your Streamlit Secrets)
+# Initialize Groq LLM (Make sure GROQ_API_KEY is in Streamlit Secrets)
 llm = ChatGroq(
     model="llama-3.2-3b-preview", 
     api_key=st.secrets["GROQ_API_KEY"],
@@ -61,13 +65,14 @@ def select_procedure(name):
     st.session_state.target_sub = name
 
 # --- 4. UI LAYOUT ---
+# page_config must be called only once
 st.set_page_config(page_title="PartsCheck Assistant", layout="wide")
 
 with st.sidebar:
-    st.markdown(f"👤 **User:** {st.user.name}")
-    # Online-friendly logo handling
-    logo_url = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/logo.png" # Replace with actual URL
-    st.image(logo_url, use_container_width=True)
+    st.markdown("👤 **User:** PartsCheck Member")
+    
+    # Placeholder for logo - Update the URL once you have your logo hosted
+    # st.image("https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/logo.png", use_container_width=True)
     
     st.markdown("---")
     if st.button("➕ Start New Inquiry", use_container_width=True):
@@ -76,7 +81,8 @@ with st.sidebar:
         st.rerun()
     
     if st.button("🚪 Logout", use_container_width=True):
-        st.logout()
+        st.session_state.authenticated = False
+        st.rerun()
 
 st.markdown("# 🛠️ PartsCheck Smart Assistant")
 
@@ -84,6 +90,7 @@ st.markdown("# 🛠️ PartsCheck Smart Assistant")
 display_container = st.container()
 
 with display_container:
+    # Welcome message for new sessions
     if not st.session_state.chat_history and not st.session_state.target_sub:
         with st.container(border=True):
             st.markdown("""
@@ -96,6 +103,7 @@ with display_container:
             """)
             st.info("💡 **Try asking:** 'How do I integrate with iBodyShop?'")
 
+    # Display the specific SOP Guide if one is selected
     if st.session_state.target_sub:
         target = st.session_state.target_sub
         st.success(f"### SOP Guide: {target}")
@@ -116,6 +124,8 @@ with display_container:
         if st.button("❌ Close Guide & Return to Chat"):
             st.session_state.target_sub = None
             st.rerun()
+            
+    # Display Chat History
     else:
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
@@ -131,7 +141,7 @@ if question := st.chat_input("Ask about an SOP or the industry..."):
 
     with st.chat_message("assistant"):
         with st.status("🔍 Analyzing request...", expanded=True) as status:
-            # LLM-based Router
+            # LLM-based Router to decide between SOP or CHAT
             router_prompt = f"""
             Available SOPs: {', '.join(all_sub_processes)}
             Input: "{question}"
@@ -142,12 +152,12 @@ if question := st.chat_input("Ask about an SOP or the industry..."):
             status.update(label="Intent Identified!", state="complete", expanded=False)
 
         if "[SOP]" in route_response:
-            # Semantic search to find the best match from the list
+            # Uses semantic search to find the closest SOP match
             matches = vectorstore.similarity_search(question, k=1)
             st.session_state.target_sub = matches[0].metadata['sub']
             st.rerun()
         else:
-            # Professional SaaS Expert Chat
+            # Professional SaaS Expert Chat Response
             chat_prompt = f"""
             You are the PartsCheck SaaS Expert. 
             Tone: Professional, Corporate, subtly Australian.
