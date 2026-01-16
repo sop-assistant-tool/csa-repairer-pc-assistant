@@ -6,17 +6,22 @@ from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 
-# --- 1. AUTHENTICATION ---
-# This forces a login screen before any other code runs.
-# Requires configuration in Streamlit Cloud dashboard or .streamlit/secrets.toml
-if not st.user.is_logged_in:
+# --- 1. SIMPLE PASSWORD AUTHENTICATION ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
     st.set_page_config(page_title="Login | PartsCheck", page_icon="🔒")
     st.markdown("# 🔒 PartsCheck Support Hub")
-    st.info("Please log in with your authorized corporate account to access the Smart Assistant.")
-    if st.button("Log In with Google/Microsoft"):
-        st.login()
+    password = st.text_input("Enter Password to Access", type="password")
+    if st.button("Log In"):
+        # You can change 'PartsCheck2026' to whatever you like
+        if password == st.secrets.get("APP_PASSWORD", "PartsCheck2026"):
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Incorrect password.")
     st.stop()
-
 # --- 2. CONFIG & DATA ---
 CSV_PATH = "processed_docs/final_rag_dataset.csv"
 IMG_DIR = "processed_docs/images"
