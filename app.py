@@ -148,6 +148,17 @@ if question := st.chat_input("Ask about an SOP or the industry..."):
             Task: If this is a request for a specific procedure, output ONLY '[SOP] Name'. 
             If it is a general question, output ONLY '[CHAT]'.
             """
+            router_prompt = f"""
+            Available SOPs: {', '.join(all_sub_processes)}
+            User Input: "{question}"
+
+            Task: Determine the user's intent.
+            1. If the user is asking for "How-to" steps or instructions for a specific procedure listed above, output ONLY '[SOP] Name'.
+            2. If the user is asking for "Why", "Benefits", "Advice", "Definitions", or general industry information, output ONLY '[CHAT]'.
+            3. If it's a greeting or general talk, output ONLY '[CHAT]'.
+
+            Your response must be ONLY the bracketed tag and the name (if SOP).
+            """
             route_response = llm.invoke(router_prompt).content.strip()
             status.update(label="Intent Identified!", state="complete", expanded=False)
 
