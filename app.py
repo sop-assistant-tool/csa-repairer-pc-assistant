@@ -35,7 +35,7 @@ def load_data():
 vectorstore, df, all_sub_processes = load_data()
 
 # LLM for routing/general chat only (optional fallback)
-llm = ChatOllama(model="llama3.1:8b", temperature=0)  # Fast routing; change to 3.2 if needed
+# llm = ChatOllama(model="llama3.1:8b", temperature=0)  # Fast routing; change to 3.2 if needed
 
 # --- SESSION STATE ---
 if "target_sub" not in st.session_state:
