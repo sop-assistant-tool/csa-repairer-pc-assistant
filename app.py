@@ -9,7 +9,7 @@ from langchain_groq import ChatGroq
 # --- 1. AUTHENTICATION ---
 # This forces a login screen before any other code runs.
 # Requires configuration in Streamlit Cloud dashboard or .streamlit/secrets.toml
-if not st.experimental_user.is_logged_in:
+if not st.user.is_logged_in:
     st.set_page_config(page_title="Login | PartsCheck", page_icon="🔒")
     st.markdown("# 🔒 PartsCheck Support Hub")
     st.info("Please log in with your authorized corporate account to access the Smart Assistant.")
@@ -59,8 +59,7 @@ def select_procedure(name):
 st.set_page_config(page_title="PartsCheck Assistant", layout="wide")
 
 with st.sidebar:
-    st.markdown(f"👤 **User:** {st.experimental_user.name}")
-    
+    st.markdown(f"👤 **User:** {st.user.name}")
     # Online-friendly logo handling
     logo_url = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/logo.png" # Replace with actual URL
     st.image(logo_url, use_container_width=True)
