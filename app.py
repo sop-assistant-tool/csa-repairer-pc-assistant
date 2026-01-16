@@ -28,7 +28,7 @@ if not st.session_state.authenticated:
 # --- 2. CONFIG & DATA ---
 # Ensure these folders and files exist in your GitHub repository
 CSV_PATH = "processed_docs/final_rag_dataset.csv"
-IMG_DIR = "processed_docs/images"
+IMG_DIR = "images"
 
 @st.cache_resource
 def load_data():
