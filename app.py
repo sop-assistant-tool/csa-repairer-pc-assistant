@@ -6,7 +6,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
 
-# --- 1. SIMPLE PASSWORD AUTHENTICATION ---
+# --- 1. AUTHENTICATION ---
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
@@ -24,12 +24,12 @@ if not st.session_state.authenticated:
 
 # --- 2. CONFIG & DATA ---
 CSV_PATH = "processed_docs/final_rag_dataset.csv"
-IMG_DIR = "images"  # Updated based on your folder structure
+IMG_DIR = "images"
 
 @st.cache_resource
 def load_data():
     if not os.path.exists(CSV_PATH):
-        st.error(f"CSV file not found at: {CSV_PATH}")
+        st.error(f"CSV file not found.")
         st.stop()
     df = pd.read_csv(CSV_PATH, encoding='utf-8').dropna(subset=['process', 'sub_process'])
     unique_subs = df[['process', 'sub_process']].drop_duplicates()
@@ -42,7 +42,7 @@ def load_data():
 vectorstore, df, all_sub_processes = load_data()
 
 llm = ChatGroq(
-    model="llama-3.1-8b-instant", # Using the stable version
+    model="llama-3.1-8b-instant",
     api_key=st.secrets["GROQ_API_KEY"],
     temperature=0
 )
@@ -73,74 +73,60 @@ with st.sidebar:
 st.markdown("# 🛠️ PartsCheck Smart Assistant")
 
 # --- 5. DISPLAY AREA ---
-display_container = st.container()
-
-with display_container:
-    if not st.session_state.chat_history and not st.session_state.target_sub:
+if st.session_state.target_sub:
+    target = st.session_state.target_sub
+    st.success(f"### SOP Guide: {target}")
+    steps = df[df['sub_process'] == target].sort_values('step_counter')
+    for _, row in steps.iterrows():
         with st.container(border=True):
-            st.markdown("""
-            ### Welcome to the PartsCheck Support Hub
-            I am your dedicated **SaaS Support Assistant**.
-            * **Search SOPs:** Ask *"How do I order?"*
-            * **General Help:** Ask *"What are the benefits of BMS integration?"*
-            """)
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                st.subheader(f"Step {row['step_counter']}")
+                st.write(row['text'])
+            with c2:
+                img_name = os.path.basename(str(row.get('image_path', '')))
+                path = os.path.join(IMG_DIR, img_name)
+                if os.path.exists(path):
+                    st.image(path, use_container_width=True)
+    if st.button("❌ Close Guide"):
+        st.session_state.target_sub = None
+        st.rerun()
+else:
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    if st.session_state.target_sub:
-        target = st.session_state.target_sub
-        st.success(f"### SOP Guide: {target}")
-        steps = df[df['sub_process'] == target].sort_values('step_counter')
-        for _, row in steps.iterrows():
-            with st.container(border=True):
-                c1, c2 = st.columns([2, 1])
-                with c1:
-                    st.subheader(f"Step {row['step_counter']}")
-                    st.write(row['text'])
-                with c2:
-                    img_name = os.path.basename(str(row.get('image_path', '')))
-                    path = os.path.join(IMG_DIR, img_name)
-                    if os.path.exists(path):
-                        st.image(path, use_container_width=True)
-        if st.button("❌ Close Guide"):
-            st.session_state.target_sub = None
-            st.rerun()
-    else:
-        for msg in st.session_state.chat_history:
-            with st.chat_message(msg["role"]):
-                st.write(msg["content"])
-
-# --- 6. INTELLIGENT ROUTING & MULTI-CHOICE ---
-if question := st.chat_input("Ask about an SOP or the industry..."):
+# --- 6. IMPROVED ROUTING (CSV FIRST) ---
+if question := st.chat_input("Ask about an SOP..."):
     st.session_state.target_sub = None
     with st.chat_message("user"):
         st.write(question)
     st.session_state.chat_history.append({"role": "user", "content": question})
 
     with st.chat_message("assistant"):
-        with st.status("🔍 Analyzing request...", expanded=True) as status:
-            router_prompt = f"""
-            Available SOPs: {', '.join(all_sub_processes)}
-            Input: "{question}"
-            Task: 
-            - If asking for 'How-to' steps/instructions, output ONLY '[SOP]'. 
-            - If asking for 'Why', 'Benefits', or general advice, output ONLY '[CHAT]'.
-            """
-            try:
-                route_response = llm.invoke(router_prompt).content.strip()
-            except:
-                route_response = "[CHAT]"
-            status.update(label="Intent Identified!", state="complete", expanded=False)
+        # STEP 1: Check CSV via Vector Search
+        # We look for matches with a high similarity
+        matches = vectorstore.similarity_search_with_score(question, k=3)
+        
+        # Filter matches by a "confidence" score (lower score = more similar)
+        # 0.6 is a good balance for MiniLM embeddings
+        relevant_matches = [m for m, score in matches if score < 1.0] 
 
-        if "[SOP]" in route_response:
-            # FIND TOP 3 MATCHES
-            matches = vectorstore.similarity_search(question, k=3)
-            st.markdown("### I found a few matching procedures. Which one do you need?")
-            
-            # Display buttons for the user to choose
-            for i, match in enumerate(matches):
+        if relevant_matches:
+            st.markdown("### 📄 Related Procedures Found:")
+            st.info("Click a procedure below to view the official steps and images.")
+            for i, match in enumerate(relevant_matches):
                 sub_name = match.metadata['sub']
-                st.button(f"📄 {sub_name}", key=f"opt_{i}", on_click=select_procedure, args=(sub_name,))
+                st.button(f"View: {sub_name}", key=f"opt_{i}", on_click=select_procedure, args=(sub_name,))
         else:
-            chat_prompt = f"You are the PartsCheck SaaS Expert. Professional and Australian tone. Answer: {question}"
+            # STEP 2: Only if no CSV match, then use LLM
+            chat_prompt = f"""
+            You are the PartsCheck SaaS Expert. 
+            Tone: Professional, Corporate, subtly Australian.
+            Constraint: If you don't know the exact steps for a PartsCheck process, 
+            advise the user to contact support or try different keywords.
+            User Question: {question}
+            """
             response = llm.invoke(chat_prompt).content
             st.write(response)
             st.session_state.chat_history.append({"role": "assistant", "content": response})
