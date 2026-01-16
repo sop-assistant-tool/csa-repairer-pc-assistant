@@ -10,3 +10,4 @@ python-dotenv  # if you ever add .env
 langchain-ollama
 pillow
 numpy
+langchain-groq
