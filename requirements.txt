@@ -1,0 +1,12 @@
+streamlit
+pandas
+langchain-community
+langchain-core
+langchain-text-splitters
+langchain-huggingface
+faiss-cpu
+sentence-transformers
+python-dotenv  # if you ever add .env
+langchain-ollama
+pillow
+numpy
